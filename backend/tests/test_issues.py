@@ -4,8 +4,9 @@ from app.models.issue import Issue
 from app.models.repository import Repository
 
 @pytest.fixture
-def repo_with_issues(db_session):
+def repo_with_issues(db_session, test_user):
     repo = Repository(
+        user_id=test_user.id,
         github_repo_id=555,
         full_name="org/project",
         name="project",
@@ -75,8 +76,9 @@ def repo_with_issues(db_session):
     db_session.commit()
     return repo
 
-def test_get_issues_empty(client, auth_headers, db_session):
+def test_get_issues_empty(client, auth_headers, db_session, test_user):
     repo = Repository(
+        user_id=test_user.id,
         github_repo_id=999,
         full_name="empty/repo",
         name="repo",

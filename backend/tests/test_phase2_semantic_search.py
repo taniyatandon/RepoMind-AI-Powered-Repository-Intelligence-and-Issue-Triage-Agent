@@ -54,8 +54,9 @@ def test_embedding_service_hybrid_similarity():
     assert sim_related > 0.0
 
 @pytest.fixture
-def phase2_test_data(db_session):
+def phase2_test_data(db_session, test_user):
     repo = Repository(
+        user_id=test_user.id,
         github_repo_id=5555,
         full_name="tiangolo/fastapi",
         name="fastapi",

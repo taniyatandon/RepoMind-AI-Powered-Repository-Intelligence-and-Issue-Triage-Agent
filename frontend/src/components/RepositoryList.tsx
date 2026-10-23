@@ -174,11 +174,6 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
     0
   );
 
-  const totalStarsIndexed = repositories.reduce(
-    (acc, r) => acc + (r.stargazers_count ?? 0),
-    0
-  );
-
   return (
     <div>
       {/* ====================================================================
@@ -207,7 +202,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
               <span>AI-Powered GitHub Intelligence</span>
             </div>
 
-            <h1 style={{ fontSize: "2.1rem", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.25, color: "#ffffff" }}>
+            <h1 style={{ fontSize: "2.1rem", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.25, color: "var(--text-primary)" }}>
               Connect your first GitHub repository
             </h1>
 
@@ -547,23 +542,23 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
             </div>
           </div>
 
-          {/* Real Metrics Strip (100% Real Data) */}
+          {/* Repository Summary */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "1.5rem",
+              gap: "1.25rem",
               marginBottom: "1.5rem",
-              padding: "0.65rem 1rem",
-              backgroundColor: "rgba(255, 255, 255, 0.02)",
+              padding: "0.75rem 1rem",
+              backgroundColor: "var(--bg-card)",
               borderRadius: "var(--radius-sm)",
               border: "1px solid var(--border-subtle)",
               flexWrap: "wrap",
               fontSize: "0.8rem",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "var(--text-muted)" }}>Repositories:</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>Repositories</span>
               <strong style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {repositories.length}
               </strong>
@@ -571,32 +566,13 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
 
             <div style={{ width: "1px", height: "14px", backgroundColor: "var(--border-subtle)" }} />
 
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "var(--text-muted)" }}>Total Ingested Issues:</span>
-              <strong style={{ color: "#34d399", fontFamily: "var(--font-mono)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+              <span style={{ color: "var(--text-muted)" }}>Ingested issues</span>
+              <strong style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {totalIssuesTracked.toLocaleString()}
               </strong>
             </div>
-
-            <div style={{ width: "1px", height: "14px", backgroundColor: "var(--border-subtle)" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "var(--text-muted)" }}>GitHub Stars Indexed:</span>
-              <strong style={{ color: "#fbbf24", fontFamily: "var(--font-mono)" }}>
-                {totalStarsIndexed.toLocaleString()}
-              </strong>
-            </div>
-
-            <div style={{ width: "1px", height: "14px", backgroundColor: "var(--border-subtle)" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginLeft: "auto" }}>
-              <span className="status-dot-pulse" />
-              <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>
-                FastAPI Backend • Live
-              </span>
-            </div>
           </div>
-
           {/* Loading Skeletons */}
           {loading && (
             <div

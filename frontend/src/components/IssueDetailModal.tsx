@@ -194,7 +194,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                     }}
                   >
                     <Sparkles size={11} color="#818cf8" />
-                    {analysis.category.replace("_", " ")} ({Math.round(analysis.confidence * 100)}%)
+                    {analysis.category.replace("_", " ")}
                   </span>
                   <span
                     className="badge"
@@ -480,9 +480,9 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                 }}
               >
                 <div>
-                  <h3 style={{ fontSize: "1.05rem", fontWeight: 700 }}>AI Root Cause & Error Inspector</h3>
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 700 }}>Issue Triage & Root Cause</h3>
                   <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                    Deep neural analysis of stack traces, affected subsystems, and reproduction steps
+                    Evidence-based triage of reported errors, affected files, and reproduction details
                   </p>
                 </div>
 
@@ -499,7 +499,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                   ) : (
                     <>
                       <RefreshCw size={13} />
-                      <span>{analysis ? "Re-run Diagnosis" : "Run AI Diagnosis"}</span>
+                      <span>{analysis ? "Re-run Triage" : "Run Triage"}</span>
                     </>
                   )}
                 </button>
@@ -516,7 +516,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                 <div style={{ textAlign: "center", padding: "3rem 1rem" }}>
                   <div className="spinner" style={{ margin: "0 auto 1rem auto" }} />
                   <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-                    Analyzing issue context, stack traces, and reproduction signals...
+                    Loading issue facts and indexed repository evidence...
                   </p>
                 </div>
               )}
@@ -524,13 +524,13 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
               {!loadingAnalysis && !analysis && (
                 <div className="empty-state" style={{ padding: "3rem 1.5rem" }}>
                   <Cpu size={36} className="empty-state-icon" />
-                  <h4 className="empty-state-title">No AI Diagnosis Run Yet</h4>
+                  <h4 className="empty-state-title">No Triage Report Available</h4>
                   <p className="empty-state-desc">
-                    Click "Run AI Diagnosis" to inspect this issue for root causes, detect stack traces, and extract reproduction criteria.
+                    Run triage to classify the issue and inspect available evidence. Repository files are shown only when matching indexed source is found.
                   </p>
                   <button className="btn btn-primary btn-sm" onClick={handleRunDiagnosis}>
                     <Sparkles size={14} />
-                    <span>Diagnose Issue Now</span>
+                    <span>Run Triage</span>
                   </button>
                 </div>
               )}
@@ -553,7 +553,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                         {analysis.category.replace("_", " ")}
                       </div>
                       <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                        Confidence: {Math.round(analysis.confidence * 100)}%
+                    Rule-based classification; score is not a probability
                       </span>
                     </div>
 
@@ -569,6 +569,11 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                       <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                         Model: {analysis.model_version}
                       </span>
+                      {analysis.priority_rationale && (
+                        <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                          {analysis.priority_rationale}
+                        </span>
+                      )}
                     </div>
 
                     <div className="card" style={{ padding: "0.85rem 1rem" }}>
@@ -617,6 +622,48 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                       </p>
                     </div>
                   )}
+
+                  {analysis.issue_facts?.length > 0 && (
+                    <div className="card" style={{ padding: "0.85rem 1rem" }}>
+                      <strong style={{ color: "var(--text-primary)", fontSize: "0.82rem" }}>Facts from the GitHub issue</strong>
+                      <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.2rem", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                        {analysis.issue_facts.map((fact, index) => (
+                          <li key={`${fact.kind}-${index}`} style={{ marginBottom: "0.25rem" }}>
+                            <strong>{fact.label}:</strong> {fact.url ? <a href={fact.url} target="_blank" rel="noreferrer">{fact.value}</a> : fact.value}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.repository_evidence?.length > 0 && (
+                    <div className="card" style={{ padding: "0.85rem 1rem" }}>
+                      <strong style={{ color: "var(--text-primary)", fontSize: "0.82rem" }}>Matching indexed repository evidence</strong>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginTop: "0.55rem" }}>
+                        {analysis.repository_evidence.map((evidence, index) => (
+                          <div key={`${evidence.file_path}-${evidence.start_line}-${index}`}>
+                            <code style={{ color: "#a5b4fc", fontSize: "0.78rem" }}>{evidence.file_path}:L{evidence.start_line}-L{evidence.end_line}</code>
+                            {evidence.matched_terms.length > 0 && <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}> - matched {evidence.matched_terms.join(", ")}</span>}
+                            <pre className="code-container" style={{ whiteSpace: "pre-wrap", marginTop: "0.3rem", maxHeight: "180px", overflow: "auto" }}>{evidence.snippet}</pre>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {analysis.assumptions?.length > 0 && (
+                    <div className="card" style={{ padding: "0.85rem 1rem", borderColor: "rgba(245, 158, 11, 0.3)" }}>
+                      <strong style={{ color: "#fbbf24", fontSize: "0.82rem" }}>Unverified assumptions and limits</strong>
+                      <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.2rem", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                        {analysis.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                    Repository source index: <strong>{analysis.repository_index_status || "unknown"}</strong>
+                    {analysis.repository_indexed_at && ` (updated ${new Date(analysis.repository_indexed_at).toLocaleString()})`}
+                  </div>
 
                   {/* Affected Subsystems */}
                   {analysis.affected_components && analysis.affected_components.length > 0 && (
@@ -737,14 +784,16 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
               {!analysis?.proposed_code_patch ? (
                 <div className="empty-state" style={{ padding: "3rem 1.5rem" }}>
                   <Wrench size={36} className="empty-state-icon" />
-                  <h4 className="empty-state-title">No Code Patch Generated</h4>
+                  <h4 className="empty-state-title">{analysis ? "No Verified Patch Available" : "No Code Patch Generated"}</h4>
                   <p className="empty-state-desc">
-                    Diagnose this issue to generate an automated code fix patch and corresponding regression test.
+                    {analysis?.patch_explanation || "Run diagnosis to inspect the issue."}
                   </p>
-                  <button className="btn btn-primary btn-sm" onClick={handleRunDiagnosis} disabled={loadingAnalysis}>
-                    <Sparkles size={14} />
-                    <span>Generate Fix Patch</span>
-                  </button>
+                  {!analysis && (
+                    <button className="btn btn-primary btn-sm" onClick={handleRunDiagnosis} disabled={loadingAnalysis}>
+                      <Sparkles size={14} />
+                      <span>Run Diagnosis</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>

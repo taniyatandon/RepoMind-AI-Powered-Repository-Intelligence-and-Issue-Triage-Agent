@@ -26,6 +26,12 @@ class IssueAnalysisResponse(BaseModel):
     reproduction_steps_detected: bool = False
     extracted_stack_trace: str | None = None
     affected_components: list[Any] = []
+    issue_facts: list[dict[str, Any]] = []
+    repository_evidence: list[dict[str, Any]] = []
+    assumptions: list[str] = []
+    priority_rationale: str | None = None
+    repository_index_status: str | None = None
+    repository_indexed_at: datetime | None = None
     
     # Proposed Code Fix & Solution fields
     fix_target_file: str | None = None

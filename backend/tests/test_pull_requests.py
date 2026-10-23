@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 import pytest
+from app.models.issue import Issue
 from app.models.pull_request import PullRequest
 from app.models.repository import Repository
 
 @pytest.fixture
-def repo_with_prs(db_session):
+def repo_with_prs(db_session, test_user):
     repo = Repository(
+        user_id=test_user.id,
         github_repo_id=123999,
         full_name="org/pr-testing",
         name="pr-testing",
@@ -65,8 +67,9 @@ def repo_with_prs(db_session):
     db_session.commit()
     return repo
 
-def test_get_pull_requests_empty(client, auth_headers, db_session):
+def test_get_pull_requests_empty(client, auth_headers, db_session, test_user):
     repo = Repository(
+        user_id=test_user.id,
         github_repo_id=8888,
         full_name="empty/pr-repo",
         name="pr-repo",
@@ -116,6 +119,49 @@ def test_get_pull_requests_filter_open(client, auth_headers, repo_with_prs):
     assert data["total"] == 1
     assert data["items"][0]["state"] == "open"
     assert data["items"][0]["pr_number"] == 11
+
+def test_get_pull_requests_filter_closed_unmerged(client, auth_headers, repo_with_prs):
+    response = client.get(
+        f"/api/repositories/{repo_with_prs.id}/pulls?status=closed",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["state"] == "closed"
+    assert data["items"][0]["is_merged"] is False
+
+def test_issue_and_pull_request_counts_are_separate(client, auth_headers, db_session, repo_with_prs):
+    issue = Issue(
+        repository_id=repo_with_prs.id,
+        github_issue_id=9901,
+        issue_number=101,
+        title="Issue record",
+        state="open",
+        labels=[],
+        html_url="https://github.com/org/pr-testing/issues/101",
+    )
+    db_session.add(issue)
+    db_session.commit()
+
+    issues_response = client.get(
+        f"/api/repositories/{repo_with_prs.id}/issues?status=all",
+        headers=auth_headers,
+    )
+    pulls_response = client.get(
+        f"/api/repositories/{repo_with_prs.id}/pulls?status=all",
+        headers=auth_headers,
+    )
+
+    assert issues_response.status_code == 200
+    assert pulls_response.status_code == 200
+    assert issues_response.json()["total"] == 1
+    assert pulls_response.json()["total"] == 3
+    assert {pr["state"] for pr in pulls_response.json()["items"]} == {
+        "open",
+        "closed",
+        "merged",
+    }
 
 def test_get_pull_requests_filter_title(client, auth_headers, repo_with_prs):
     res = client.get(

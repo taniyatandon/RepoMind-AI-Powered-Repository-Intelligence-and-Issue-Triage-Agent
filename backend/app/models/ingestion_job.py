@@ -7,6 +7,7 @@ class IngestionJob(Base):
     __tablename__ = "ingestion_jobs"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     repository_id = Column(
         Integer,
         ForeignKey("repositories.id", ondelete="SET NULL"),

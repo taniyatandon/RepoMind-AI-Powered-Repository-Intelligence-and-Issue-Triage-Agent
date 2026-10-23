@@ -75,7 +75,7 @@ export const PullRequestExplorer: React.FC<PullRequestExplorerProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [repository.id, page, perPage, statusFilter, titleSearch]);
+  }, [repository.id, repository.last_synced_at, page, perPage, statusFilter, titleSearch]);
 
   const handleResetFilters = () => {
     setStatusFilter("all");
@@ -87,6 +87,15 @@ export const PullRequestExplorer: React.FC<PullRequestExplorerProps> = ({
 
   return (
     <div>
+      <p
+        style={{
+          margin: "0 0 0.75rem",
+          color: "var(--text-muted)",
+          fontSize: "0.8rem",
+        }}
+      >
+        Counts show pull requests imported into RepoMind, not necessarily live GitHub totals.
+      </p>
       {/* Search and Filters Bar */}
       <div
         className="card"
@@ -173,7 +182,7 @@ export const PullRequestExplorer: React.FC<PullRequestExplorerProps> = ({
                 setPage(1);
               }}
             >
-              <option value="all">All Pull Requests</option>
+              <option value="all">All Imported Pull Requests</option>
               <option value="open">Open Only</option>
               <option value="merged">Merged Only</option>
               <option value="closed">Closed (Unmerged) Only</option>
@@ -197,10 +206,10 @@ export const PullRequestExplorer: React.FC<PullRequestExplorerProps> = ({
             <button
               className="btn btn-secondary btn-sm"
               onClick={onSyncRepo}
-              title="Sync repository with GitHub to ingest latest PRs"
+              title="Refresh repository metadata, issues, and pull requests from GitHub"
             >
               <RefreshCw size={13} />
-              <span>Sync PRs</span>
+              <span>Sync Repository</span>
             </button>
           )}
 
@@ -462,7 +471,7 @@ export const PullRequestExplorer: React.FC<PullRequestExplorerProps> = ({
           >
             <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
               Showing {prsData.items.length > 0 ? (page - 1) * perPage + 1 : 0} to{" "}
-              {Math.min(page * perPage, prsData.total)} of {prsData.total} pull requests
+              {Math.min(page * perPage, prsData.total)} of {prsData.total} imported pull requests
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

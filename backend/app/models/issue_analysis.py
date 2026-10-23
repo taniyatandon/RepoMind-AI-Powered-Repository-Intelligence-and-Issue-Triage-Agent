@@ -28,7 +28,7 @@ class IssueAnalysis(Base):
     category = Column(String(50), nullable=False, index=True)  # bug, feature_request, improvement, question, documentation
     priority = Column(String(20), nullable=False, index=True)  # P0_CRITICAL, P1_HIGH, P2_MEDIUM, P3_LOW
     confidence = Column(Float, nullable=False, default=0.85)
-    model_version = Column(String(50), nullable=False, default="repomind-triage-v1.0")
+    model_version = Column(String(50), nullable=False, default="repomind-triage-v1.4-evidence")
     
     # Debugging & Diagnosis fields
     root_cause_hypothesis = Column(Text, nullable=True)
@@ -41,6 +41,13 @@ class IssueAnalysis(Base):
         nullable=False,
         default=list,
     )
+    issue_facts = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=list)
+    repository_evidence = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=list)
+    assumptions = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=list)
+    priority_rationale = Column(Text, nullable=True)
+    repository_index_status = Column(String(30), nullable=True)
+    repository_indexed_at = Column(DateTime(timezone=True), nullable=True)
+    source_content_digest = Column(String(64), nullable=True)
 
     # Code Fix & Solution fields
     fix_target_file = Column(String(255), nullable=True)

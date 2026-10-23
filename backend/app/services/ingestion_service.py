@@ -59,12 +59,13 @@ class IngestionService:
             # Insert or update repository record
             repository = (
                 db.query(Repository)
-                .filter(Repository.full_name == repo_data["full_name"])
+                .filter(Repository.full_name == repo_data["full_name"], Repository.user_id == job.user_id)
                 .first()
             )
             now_utc = datetime.now(timezone.utc)
             if not repository:
                 repository = Repository(
+                    user_id=job.user_id,
                     github_repo_id=repo_data["id"],
                     full_name=repo_data["full_name"],
                     name=repo_data["name"],
@@ -75,7 +76,6 @@ class IngestionService:
                     stargazers_count=repo_data.get("stargazers_count", 0),
                     forks_count=repo_data.get("forks_count", 0),
                     open_issues_count=repo_data.get("open_issues_count", 0),
-                    last_synced_at=now_utc,
                 )
                 db.add(repository)
                 db.flush()  # get repository.id
@@ -88,27 +88,27 @@ class IngestionService:
                 repository.stargazers_count = repo_data.get("stargazers_count", 0)
                 repository.forks_count = repo_data.get("forks_count", 0)
                 repository.open_issues_count = repo_data.get("open_issues_count", 0)
-                repository.last_synced_at = now_utc
 
             # Link job to repository
             job.repository_id = repository.id
             db.commit()
 
-            # 2. Fetch Issues (up to 3 pages, excluding PRs)
-            raw_issues = await self.github_client.get_issues(owner, repo, max_pages=3, per_page=100)
+            # Fetch complete result sets before changing issue or PR records. A failed
+            # GitHub page must not leave a partial import marked as successful.
+            raw_issues = await self.github_client.get_issues(owner, repo, per_page=100)
+            raw_prs = await self.github_client.get_pull_requests(owner, repo, per_page=100)
 
             # Upsert issues
             ingested_count = 0
+            existing_issues = {
+                issue.github_issue_id: issue
+                for issue in db.query(Issue)
+                .filter(Issue.repository_id == repository.id)
+                .all()
+            }
             for item in raw_issues:
                 github_issue_id = item["id"]
-                existing_issue = (
-                    db.query(Issue)
-                    .filter(
-                        Issue.repository_id == repository.id,
-                        Issue.github_issue_id == github_issue_id,
-                    )
-                    .first()
-                )
+                existing_issue = existing_issues.get(github_issue_id)
 
                 # Format labels as list of dicts
                 labels_formatted = []
@@ -154,95 +154,92 @@ class IngestionService:
                         closed_at=closed_at,
                     )
                     db.add(new_issue)
+                    existing_issues[github_issue_id] = new_issue
                 ingested_count += 1
 
-            # 3. Fetch Pull Requests (up to 2 pages, state=all)
-            try:
-                raw_prs = await self.github_client.get_pull_requests(owner, repo, max_pages=2, per_page=50)
-                for pr_item in raw_prs:
-                    github_pr_id = pr_item["id"]
-                    existing_pr = (
-                        db.query(PullRequest)
-                        .filter(
-                            PullRequest.repository_id == repository.id,
-                            PullRequest.github_pr_id == github_pr_id,
-                        )
-                        .first()
+            existing_prs = {
+                pr.github_pr_id: pr
+                for pr in db.query(PullRequest)
+                .filter(PullRequest.repository_id == repository.id)
+                .all()
+            }
+            for pr_item in raw_prs:
+                github_pr_id = pr_item["id"]
+                existing_pr = existing_prs.get(github_pr_id)
+
+                pr_labels = []
+                for label in pr_item.get("labels", []):
+                    if isinstance(label, dict):
+                        pr_labels.append({
+                            "name": label.get("name"),
+                            "color": label.get("color"),
+                            "description": label.get("description"),
+                        })
+                    elif isinstance(label, str):
+                        pr_labels.append({"name": label, "color": "6e7681"})
+
+                pr_author = pr_item.get("user", {}).get("login") if pr_item.get("user") else None
+                pr_created_at = parse_iso_datetime(pr_item.get("created_at")) or now_utc
+                pr_updated_at = parse_iso_datetime(pr_item.get("updated_at")) or now_utc
+                pr_closed_at = parse_iso_datetime(pr_item.get("closed_at"))
+                pr_merged_at = parse_iso_datetime(pr_item.get("merged_at"))
+                is_merged = pr_merged_at is not None
+                pr_state = "merged" if is_merged else pr_item.get("state", "open")
+
+                if existing_pr:
+                    existing_pr.pr_number = pr_item.get("number", existing_pr.pr_number)
+                    existing_pr.title = pr_item.get("title", "")
+                    existing_pr.body = pr_item.get("body")
+                    existing_pr.state = pr_state
+                    existing_pr.is_merged = is_merged
+                    existing_pr.merged_at = pr_merged_at
+                    existing_pr.author = pr_author
+                    existing_pr.labels = pr_labels
+                    existing_pr.html_url = pr_item.get("html_url", "")
+                    existing_pr.diff_url = pr_item.get("diff_url")
+                    existing_pr.updated_at = pr_updated_at
+                    existing_pr.closed_at = pr_closed_at
+                else:
+                    new_pr = PullRequest(
+                        repository_id=repository.id,
+                        github_pr_id=github_pr_id,
+                        pr_number=pr_item.get("number", 0),
+                        title=pr_item.get("title", ""),
+                        body=pr_item.get("body"),
+                        state=pr_state,
+                        is_merged=is_merged,
+                        merged_at=pr_merged_at,
+                        author=pr_author,
+                        labels=pr_labels,
+                        html_url=pr_item.get("html_url", ""),
+                        diff_url=pr_item.get("diff_url"),
+                        created_at=pr_created_at,
+                        updated_at=pr_updated_at,
+                        closed_at=pr_closed_at,
                     )
+                    db.add(new_pr)
+                    existing_prs[github_pr_id] = new_pr
+            db.flush()
 
-                    pr_labels = []
-                    for label in pr_item.get("labels", []):
-                        if isinstance(label, dict):
-                            pr_labels.append({
-                                "name": label.get("name"),
-                                "color": label.get("color"),
-                                "description": label.get("description"),
-                            })
-                        elif isinstance(label, str):
-                            pr_labels.append({"name": label, "color": "6e7681"})
-
-                    pr_author = pr_item.get("user", {}).get("login") if pr_item.get("user") else None
-                    pr_created_at = parse_iso_datetime(pr_item.get("created_at")) or now_utc
-                    pr_updated_at = parse_iso_datetime(pr_item.get("updated_at")) or now_utc
-                    pr_closed_at = parse_iso_datetime(pr_item.get("closed_at"))
-                    pr_merged_at = parse_iso_datetime(pr_item.get("merged_at"))
-                    is_merged = pr_merged_at is not None
-                    pr_state = "merged" if is_merged else pr_item.get("state", "open")
-
-                    if existing_pr:
-                        existing_pr.title = pr_item.get("title", "")
-                        existing_pr.body = pr_item.get("body")
-                        existing_pr.state = pr_state
-                        existing_pr.is_merged = is_merged
-                        existing_pr.merged_at = pr_merged_at
-                        existing_pr.author = pr_author
-                        existing_pr.labels = pr_labels
-                        existing_pr.html_url = pr_item.get("html_url", "")
-                        existing_pr.diff_url = pr_item.get("diff_url")
-                        existing_pr.updated_at = pr_updated_at
-                        existing_pr.closed_at = pr_closed_at
-                    else:
-                        new_pr = PullRequest(
-                            repository_id=repository.id,
-                            github_pr_id=github_pr_id,
-                            pr_number=pr_item.get("number", 0),
-                            title=pr_item.get("title", ""),
-                            body=pr_item.get("body"),
-                            state=pr_state,
-                            is_merged=is_merged,
-                            merged_at=pr_merged_at,
-                            author=pr_author,
-                            labels=pr_labels,
-                            html_url=pr_item.get("html_url", ""),
-                            diff_url=pr_item.get("diff_url"),
-                            created_at=pr_created_at,
-                            updated_at=pr_updated_at,
-                            closed_at=pr_closed_at,
-                        )
-                        db.add(new_pr)
-                db.flush()
-
-                # Pre-enrich up to 3 most recent PRs with commits and file diffs
-                recent_prs = (
-                    db.query(PullRequest)
-                    .filter(PullRequest.repository_id == repository.id)
-                    .order_by(PullRequest.created_at.desc(), PullRequest.pr_number.desc())
-                    .limit(3)
-                    .all()
-                )
-                for pr_obj in recent_prs:
-                    try:
-                        await self.ingest_pull_request_diffs(db, repository, pr_obj)
-                    except Exception as diff_err:
-                        logger.warning(f"Could not pre-enrich PR #{pr_obj.pr_number} with diffs: {diff_err}")
-
-            except Exception as pr_err:
-                logger.warning(f"Could not ingest pull requests for {owner}/{repo}: {pr_err}")
+            # Pre-enrich up to 3 most recent PRs with commits and file diffs
+            recent_prs = (
+                db.query(PullRequest)
+                .filter(PullRequest.repository_id == repository.id)
+                .order_by(PullRequest.created_at.desc(), PullRequest.pr_number.desc())
+                .limit(3)
+                .all()
+            )
+            for pr_obj in recent_prs:
+                try:
+                    await self.ingest_pull_request_diffs(db, repository, pr_obj)
+                except Exception as diff_err:
+                    logger.warning(f"Could not pre-enrich PR #{pr_obj.pr_number} with diffs: {diff_err}")
 
             # Update job record to completed
             job.status = "completed"
             job.total_issues_ingested = ingested_count
             job.completed_at = datetime.now(timezone.utc)
+            repository.last_synced_at = job.completed_at
             db.commit()
             logger.info(f"Ingestion job {job_id} completed successfully with {ingested_count} issues.")
 

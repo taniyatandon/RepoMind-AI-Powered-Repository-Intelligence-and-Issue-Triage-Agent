@@ -26,4 +26,4 @@ class CodeIndexStatus(Base):
     last_indexed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
 
-    repository = relationship("Repository", backref="index_status")
+    repository = relationship("Repository", back_populates="index_status")

@@ -3,6 +3,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.authorization import get_owned_repository
 from app.models.commit import Commit
 from app.models.code_diff import CodeDiff
 from app.models.issue import Issue
@@ -91,12 +92,7 @@ def get_repository_pull_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    get_owned_repository(db, repo_id, current_user.id)
 
     query = db.query(PullRequest).filter(PullRequest.repository_id == repo_id)
 
@@ -139,7 +135,9 @@ def get_pull_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
+    pr = db.query(PullRequest).join(Repository).filter(
+        PullRequest.id == pr_id, Repository.user_id == current_user.id
+    ).first()
     if not pr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -153,7 +151,9 @@ def get_pull_request_commits(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
+    pr = db.query(PullRequest).join(Repository).filter(
+        PullRequest.id == pr_id, Repository.user_id == current_user.id
+    ).first()
     if not pr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -173,7 +173,9 @@ def get_pull_request_diffs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
+    pr = db.query(PullRequest).join(Repository).filter(
+        PullRequest.id == pr_id, Repository.user_id == current_user.id
+    ).first()
     if not pr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -194,7 +196,9 @@ async def get_pull_request_changes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
+    pr = db.query(PullRequest).join(Repository).filter(
+        PullRequest.id == pr_id, Repository.user_id == current_user.id
+    ).first()
     if not pr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -255,7 +259,9 @@ async def sync_pull_request_diffs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
+    pr = db.query(PullRequest).join(Repository).filter(
+        PullRequest.id == pr_id, Repository.user_id == current_user.id
+    ).first()
     if not pr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

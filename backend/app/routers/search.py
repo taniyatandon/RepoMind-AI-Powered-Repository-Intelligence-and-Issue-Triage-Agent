@@ -64,6 +64,7 @@ async def global_search(
         repo_matches = (
             db.query(Repository)
             .filter(
+                Repository.user_id == current_user.id,
                 or_(
                     Repository.full_name.ilike(search_pattern),
                     Repository.name.ilike(search_pattern),
@@ -93,7 +94,7 @@ async def global_search(
     if mode in ("all", "keyword"):
         issue_query = db.query(Issue, Repository.full_name).join(
             Repository, Issue.repository_id == Repository.id
-        )
+        ).filter(Repository.user_id == current_user.id)
         if repository_id:
             issue_query = issue_query.filter(Issue.repository_id == repository_id)
 
@@ -136,7 +137,7 @@ async def global_search(
     if mode in ("all", "keyword"):
         pr_query = db.query(PullRequest, Repository.full_name).join(
             Repository, PullRequest.repository_id == Repository.id
-        )
+        ).filter(Repository.user_id == current_user.id)
         if repository_id:
             pr_query = pr_query.filter(PullRequest.repository_id == repository_id)
 
@@ -182,6 +183,7 @@ async def global_search(
             query=clean_q,
             repository_id=repository_id,
             limit=limit,
+            user_id=current_user.id,
         )
         code_results = [
             SearchResultCodeChunk(
@@ -205,6 +207,7 @@ async def global_search(
             query=clean_q,
             repository_id=repository_id,
             limit=limit,
+            user_id=current_user.id,
         )
         investigation_results = [
             SearchResultInvestigation(
@@ -256,6 +259,7 @@ async def search_code_endpoint(
         query=q,
         repository_id=repository_id,
         limit=limit,
+        user_id=current_user.id,
     )
     return [
         SearchResultCodeChunk(
@@ -285,6 +289,7 @@ async def search_investigations_endpoint(
         query=q,
         repository_id=repository_id,
         limit=limit,
+        user_id=current_user.id,
     )
     return [
         SearchResultInvestigation(
@@ -314,5 +319,6 @@ async def explain_code_endpoint(
         db=db,
         query=body.query,
         repository_id=body.repository_id,
+        user_id=current_user.id,
     )
     return AIExplanationResponse.model_validate(explanation)

@@ -24,6 +24,7 @@ class CodeIntelligenceService:
         query: str,
         repository_id: int | None = None,
         limit: int = 6,
+        user_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Performs semantic & hybrid code retrieval across indexed code chunks.
@@ -39,6 +40,8 @@ class CodeIntelligenceService:
         chunk_query = db.query(CodeChunk, Repository.full_name).join(
             Repository, CodeChunk.repository_id == Repository.id
         )
+        if user_id is not None:
+            chunk_query = chunk_query.filter(Repository.user_id == user_id)
         if repository_id:
             chunk_query = chunk_query.filter(CodeChunk.repository_id == repository_id)
 
@@ -97,6 +100,7 @@ class CodeIntelligenceService:
         query: str,
         repository_id: int | None = None,
         limit: int = 5,
+        user_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Searches previously saved AI investigations (IssueAnalysis records).
@@ -117,6 +121,8 @@ class CodeIntelligenceService:
 
         if repository_id:
             inv_query = inv_query.filter(Issue.repository_id == repository_id)
+        if user_id is not None:
+            inv_query = inv_query.filter(Repository.user_id == user_id)
 
         # Match full query phrase or any individual query terms
         conditions = [
@@ -179,6 +185,7 @@ class CodeIntelligenceService:
         db: Session,
         query: str,
         repository_id: int | None = None,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         """
         Generates an evidence-grounded AI explanation based strictly on retrieved code chunks.
@@ -194,7 +201,7 @@ class CodeIntelligenceService:
             }
 
         # 1. Retrieve top 4 code chunks
-        chunks = await self.search_code(db, clean_q, repository_id=repository_id, limit=4)
+        chunks = await self.search_code(db, clean_q, repository_id=repository_id, limit=4, user_id=user_id)
 
         if not chunks or (chunks and chunks[0]["relevance_score"] < 0.15):
             return {

@@ -802,7 +802,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             )}
                             {inv.confidence && (
                               <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "auto" }}>
-                                {(inv.confidence * 100).toFixed(0)}% confidence
+                                Rule score: {inv.confidence.toFixed(2)}
                               </span>
                             )}
                           </div>

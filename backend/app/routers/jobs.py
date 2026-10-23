@@ -14,7 +14,10 @@ def get_job_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    job = db.query(IngestionJob).filter(IngestionJob.id == job_id).first()
+    job = db.query(IngestionJob).filter(
+        IngestionJob.id == job_id,
+        IngestionJob.user_id == current_user.id,
+    ).first()
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

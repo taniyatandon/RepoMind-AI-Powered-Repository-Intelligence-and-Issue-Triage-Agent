@@ -1,14 +1,19 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Text
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Repository(Base):
     __tablename__ = "repositories"
+    __table_args__ = (
+        UniqueConstraint("user_id", "github_repo_id", name="uq_repo_user_github_id"),
+        UniqueConstraint("user_id", "full_name", name="uq_repo_user_full_name"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    github_repo_id = Column(BigInteger, unique=True, index=True, nullable=False)
-    full_name = Column(String(255), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    github_repo_id = Column(BigInteger, index=True, nullable=False)
+    full_name = Column(String(255), index=True, nullable=False)
     name = Column(String(100), nullable=False)
     owner = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
@@ -31,6 +36,12 @@ class Repository(Base):
         passive_deletes=True,
     )
     ingestion_jobs = relationship("IngestionJob", back_populates="repository")
+    index_status = relationship(
+        "CodeIndexStatus",
+        back_populates="repository",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     pull_requests = relationship(
         "PullRequest",
         back_populates="repository",

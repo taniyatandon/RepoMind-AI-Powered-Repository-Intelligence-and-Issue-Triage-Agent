@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   apiDeleteRepository,
+  apiGetJobStatus,
   apiGetIssueDetails,
   apiGetMe,
   apiGetRepository,
@@ -27,14 +28,7 @@ import {
   SearchResultRepository,
   User,
 } from "./types";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Cpu,
-  GitBranch,
-  Shield,
-  X,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(getStoredUser());
@@ -143,15 +137,28 @@ export const App: React.FC = () => {
 
   const handleSyncRepo = async (repo: Repository) => {
     try {
-      await apiSyncRepository(repo.id);
+      const accepted = await apiSyncRepository(repo.id);
       showNotification(
         "success",
         `Sync job started for ${repo.full_name}. Background ingestion active...`
       );
-      // Refresh list after brief moment
-      setTimeout(loadRepositories, 3000);
+      let job = await apiGetJobStatus(accepted.job_id);
+      while (job.status === "pending" || job.status === "running") {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        job = await apiGetJobStatus(accepted.job_id);
+      }
+      if (job.status !== "completed") {
+        throw new Error(job.error_message || `Sync for ${repo.full_name} did not complete.`);
+      }
+
+      const [latestRepo] = await Promise.all([
+        apiGetRepository(repo.id),
+        loadRepositories(),
+      ]);
+      setSelectedRepo((current) => current?.id === repo.id ? latestRepo : current);
+      showNotification("success", `Sync completed for ${repo.full_name}.`);
     } catch (err: any) {
-      showNotification("error", err.message || "Failed to trigger sync.");
+      showNotification("error", err.message || "Repository sync failed.");
     }
   };
 
@@ -282,22 +289,6 @@ export const App: React.FC = () => {
           }
         }}
         repositories={repositories}
-        onOpenAddRepo={() => {
-          if (!user) {
-            setAuthMode("login");
-            setAuthModalOpen(true);
-          } else {
-            setAddRepoModalOpen(true);
-          }
-        }}
-        onOpenSearch={() => {
-          if (!user) {
-            setAuthMode("login");
-            setAuthModalOpen(true);
-          } else {
-            setSearchPaletteOpen(true);
-          }
-        }}
         user={user}
         onLogout={handleLogout}
         onOpenAuth={(mode) => {
@@ -315,14 +306,6 @@ export const App: React.FC = () => {
             setAuthModalOpen(true);
           }}
           onLogout={handleLogout}
-          onOpenAddRepo={() => {
-            if (!user) {
-              setAuthMode("login");
-              setAuthModalOpen(true);
-            } else {
-              setAddRepoModalOpen(true);
-            }
-          }}
           onOpenSearch={() => {
             if (!user) {
               setAuthMode("login");
@@ -431,64 +414,6 @@ export const App: React.FC = () => {
             />
           )}
         </main>
-
-        {/* Modern Developer Workspace Footer */}
-        <footer
-          style={{
-            borderTop: "1px solid var(--border-subtle)",
-            padding: "1.5rem 1.5rem",
-            backgroundColor: "rgba(10, 15, 29, 0.7)",
-            marginTop: "auto",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: "1360px",
-              margin: "0 auto",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "1rem",
-              fontSize: "0.8rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>RepoMind</span>
-              <span>•</span>
-              <span>Open-Source Repository Intelligence & Issue Triage Agent</span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                <Shield size={13} color="#10b981" />
-                <span>JWT Bearer Auth</span>
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                <Cpu size={13} color="#6366f1" />
-                <span>FastAPI REST API</span>
-              </span>
-              <a
-                href="https://github.com"
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  color: "var(--text-muted)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                  textDecoration: "none",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-              >
-                <GitBranch size={13} />
-                <span>GitHub API</span>
-              </a>
-            </div>
-          </div>
-        </footer>
       </div>
 
       {/* Modals */}

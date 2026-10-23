@@ -9,8 +9,6 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
-  Search,
   X,
 } from "lucide-react";
 
@@ -24,8 +22,6 @@ interface SidebarProps {
   selectedRepo: Repository | null;
   onSelectRepo: (repo: Repository | null) => void;
   repositories: Repository[];
-  onOpenAddRepo: () => void;
-  onOpenSearch: () => void;
   user: User | null;
   onLogout: () => void;
   onOpenAuth: (mode: "login" | "register") => void;
@@ -41,8 +37,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedRepo,
   onSelectRepo,
   repositories,
-  onOpenAddRepo,
-  onOpenSearch,
   user,
   onLogout,
   onOpenAuth,
@@ -81,9 +75,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {isOpen && (
               <div className="sidebar-brand-text">
                 <span className="brand-name">RepoMind</span>
-                <span className="brand-badge" style={{ fontSize: "0.6rem" }}>
-                  AI 2.0
-                </span>
               </div>
             )}
           </div>
@@ -108,155 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Action Buttons: Global Search & Add Repository */}
-        <div style={{ padding: isOpen ? "0.65rem 0.85rem 0.45rem 0.85rem" : "0.65rem 0.4rem 0.45rem 0.4rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-          {/* Global Search Trigger */}
-          <button
-            className="btn btn-outline"
-            style={{
-              width: "100%",
-              justifyContent: isOpen ? "flex-start" : "center",
-              padding: isOpen ? "0.45rem 0.65rem" : "0.45rem 0",
-              fontSize: "0.8rem",
-              borderRadius: "var(--radius-sm)",
-              backgroundColor: "rgba(255, 255, 255, 0.03)",
-              borderColor: "var(--border-subtle)",
-              color: "var(--text-secondary)",
-            }}
-            onClick={() => {
-              onOpenSearch();
-              onCloseMobile();
-            }}
-            title="Global Search (⌘K)"
-          >
-            <Search size={15} style={{ flexShrink: 0 }} />
-            {isOpen && (
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flex: 1,
-                  marginLeft: "0.45rem",
-                }}
-              >
-                <span>Search...</span>
-                <kbd
-                  style={{
-                    fontSize: "0.65rem",
-                    fontFamily: "var(--font-mono)",
-                    padding: "1px 5px",
-                    borderRadius: "3px",
-                    backgroundColor: "rgba(255, 255, 255, 0.06)",
-                    border: "1px solid var(--border-subtle)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  ⌘K
-                </kbd>
-              </span>
-            )}
-          </button>
-
-          {/* Add Repository Button */}
-          <button
-            className="btn btn-primary"
-            style={{
-              width: "100%",
-              justifyContent: isOpen ? "flex-start" : "center",
-              padding: isOpen ? "0.45rem 0.65rem" : "0.45rem 0",
-              fontSize: "0.8rem",
-              borderRadius: "var(--radius-sm)",
-            }}
-            onClick={() => {
-              onOpenAddRepo();
-              onCloseMobile();
-            }}
-            title="Ingest New Repository"
-          >
-            <Plus size={15} style={{ flexShrink: 0 }} />
-            {isOpen && <span style={{ marginLeft: "0.45rem" }}>Add Repository</span>}
-          </button>
-        </div>
-
         {/* Active Repository Context Widget (if a repo is selected) */}
-        {selectedRepo && (
-          <div
-            style={{
-              margin: isOpen ? "0 0.85rem 0.75rem 0.85rem" : "0 0.4rem 0.75rem 0.4rem",
-              padding: isOpen ? "0.6rem 0.75rem" : "0.5rem 0.2rem",
-              backgroundColor: "rgba(99, 102, 241, 0.08)",
-              border: "1px solid rgba(99, 102, 241, 0.25)",
-              borderRadius: "var(--radius-sm)",
-            }}
-          >
-            {isOpen ? (
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    fontSize: "0.7rem",
-                    color: "var(--text-muted)",
-                    marginBottom: "0.25rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    fontWeight: 600,
-                  }}
-                >
-                  <span>Active Project</span>
-                  <button
-                    onClick={() => {
-                      onSelectRepo(null);
-                      onNavigate("repositories");
-                      onCloseMobile();
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#818cf8",
-                      fontSize: "0.7rem",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                    title="Return to all repositories"
-                  >
-                    Change
-                  </button>
-                </div>
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: "0.825rem",
-                    color: "var(--text-primary)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                  title={selectedRepo.full_name}
-                >
-                  {selectedRepo.name}
-                </div>
-                <div style={{ fontSize: "0.725rem", color: "var(--text-secondary)", marginTop: "2px" }}>
-                  {selectedRepo.owner}
-                </div>
-              </div>
-            ) : (
-              <div
-                style={{ textAlign: "center" }}
-                title={`Active: ${selectedRepo.full_name}`}
-                onClick={() => {
-                  onSelectRepo(null);
-                  onNavigate("repositories");
-                }}
-              >
-                <FolderGit2 size={16} color="#818cf8" style={{ margin: "0 auto" }} />
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Navigation Sections */}
         <div className="sidebar-nav-scroll">
           <div className="sidebar-nav-group">
@@ -334,72 +177,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {isOpen && <span className="sidebar-item-label">Pull Requests</span>}
             </button>
           </div>
-
-          {/* Quick Shortcuts Section when expanded */}
-          {isOpen && repositories.length > 0 && (
-            <div className="sidebar-nav-group" style={{ marginTop: "1rem" }}>
-              <span className="sidebar-group-title">PINNED PROJECTS</span>
-              {repositories.slice(0, 4).map((r) => {
-                const isCurrent = selectedRepo?.id === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    className={`sidebar-nav-item sidebar-sub-item ${isCurrent ? "active" : ""}`}
-                    onClick={() => {
-                      onSelectRepo(r);
-                      onNavigate("issues");
-                      onCloseMobile();
-                    }}
-                    title={r.full_name}
-                  >
-                    <span
-                      style={{
-                        width: "6px",
-                        height: "6px",
-                        borderRadius: "50%",
-                        backgroundColor: isCurrent ? "#818cf8" : "var(--text-muted)",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      className="sidebar-item-label"
-                      style={{
-                        fontSize: "0.8rem",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {r.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        {/* Footer / Engine Telemetry & User Session */}
         <div className="sidebar-footer">
-          {/* Live Engine Status */}
-          {isOpen ? (
-            <div className="sidebar-status-box">
-              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <span className="status-dot-pulse" />
-                <span style={{ fontSize: "0.725rem", fontWeight: 600, color: "var(--text-secondary)" }}>
-                  FastAPI Engine Online
-                </span>
-              </div>
-              <span style={{ fontSize: "0.675rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                v1.0.0 • SQLite/PG
-              </span>
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "0.5rem 0" }} title="Engine Online">
-              <span className="status-dot-pulse" style={{ display: "inline-block" }} />
-            </div>
-          )}
-
           {/* User Account / Auth */}
           <div className="sidebar-user-box">
             {user ? (

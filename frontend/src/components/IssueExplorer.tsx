@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   apiDiagnoseIssue,
   apiGetIssueAnalysis,
@@ -84,6 +84,8 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
   const [selectedIssueItem, setSelectedIssueItem] = useState<Issue | null>(null);
   const [inlineAnalysis, setInlineAnalysis] = useState<IssueAnalysis | null>(null);
   const [loadingInlineAnalysis, setLoadingInlineAnalysis] = useState(false);
+  const [inlineAnalysisError, setInlineAnalysisError] = useState<string | null>(null);
+  const inlineAnalysisRequest = useRef(0);
   const [diagnosingInline, setDiagnosingInline] = useState(false);
   const [copiedPatch, setCopiedPatch] = useState(false);
   const [copiedTest, setCopiedTest] = useState(false);
@@ -124,7 +126,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
       }
     }
     loadLabels();
-  }, [repository.id]);
+  }, [repository.id, repository.last_synced_at]);
 
   // Load repository PR count on mount
   useEffect(() => {
@@ -137,7 +139,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
       }
     }
     loadPrCount();
-  }, [repository.id]);
+  }, [repository.id, repository.last_synced_at]);
 
   // Load issues whenever filter/pagination changes
   useEffect(() => {
@@ -176,20 +178,25 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [repository.id, page, perPage, statusFilter, selectedLabel, titleSearch]);
+  }, [repository.id, repository.last_synced_at, page, perPage, statusFilter, selectedLabel, titleSearch]);
 
   // Load analysis whenever selected issue changes
   const loadIssueAnalysis = async (issueId: number) => {
+    const requestId = ++inlineAnalysisRequest.current;
     setLoadingInlineAnalysis(true);
+    setDiagnosingInline(false);
     setInlineAnalysis(null);
+    setInlineAnalysisError(null);
     try {
       const data = await apiGetIssueAnalysis(issueId);
-      setInlineAnalysis(data);
-    } catch {
-      // Not yet analyzed or analysis missing
-      setInlineAnalysis(null);
+      if (inlineAnalysisRequest.current === requestId) setInlineAnalysis(data);
+    } catch (err: any) {
+      if (inlineAnalysisRequest.current === requestId) {
+        setInlineAnalysis(null);
+        setInlineAnalysisError(err.message || "Could not load triage for this issue.");
+      }
     } finally {
-      setLoadingInlineAnalysis(false);
+      if (inlineAnalysisRequest.current === requestId) setLoadingInlineAnalysis(false);
     }
   };
 
@@ -197,20 +204,29 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
     if (selectedIssueItem) {
       loadIssueAnalysis(selectedIssueItem.id);
     } else {
+      inlineAnalysisRequest.current += 1;
       setInlineAnalysis(null);
+      setInlineAnalysisError(null);
+      setLoadingInlineAnalysis(false);
+      setDiagnosingInline(false);
     }
   }, [selectedIssueItem]);
 
   const handleRunInlineDiagnosis = async () => {
     if (!selectedIssueItem) return;
+    const requestId = ++inlineAnalysisRequest.current;
+    const issueId = selectedIssueItem.id;
     setDiagnosingInline(true);
+    setInlineAnalysisError(null);
     try {
-      const result = await apiDiagnoseIssue(selectedIssueItem.id);
-      setInlineAnalysis(result);
+      const result = await apiDiagnoseIssue(issueId);
+      if (inlineAnalysisRequest.current === requestId) setInlineAnalysis(result);
     } catch (err: any) {
-      setError(err.message || "Failed to diagnose issue.");
+      if (inlineAnalysisRequest.current === requestId) {
+        setInlineAnalysisError(err.message || "Failed to run triage.");
+      }
     } finally {
-      setDiagnosingInline(false);
+      if (inlineAnalysisRequest.current === requestId) setDiagnosingInline(false);
     }
   };
 
@@ -536,14 +552,14 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
 
           <div style={{ display: "flex", gap: "1.25rem", fontSize: "0.775rem", color: "var(--text-secondary)" }}>
             <div>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", display: "block" }}>ISSUES INDEXED</span>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", display: "block" }}>ISSUES IMPORTED</span>
               <strong style={{ fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {issuesData.total}
               </strong>
             </div>
 
             <div>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", display: "block" }}>PULL REQUESTS</span>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", display: "block" }}>PRS IMPORTED</span>
               <strong style={{ fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
                 {prCount !== null ? prCount : "—"}
               </strong>
@@ -944,7 +960,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                         )}
                       </div>
 
-                      {/* AI Root Cause Hypothesis (if diagnosed) */}
+                      {/* Evidence-grounded root cause hypothesis (if diagnosed) */}
                       {inlineAnalysis?.root_cause_hypothesis && (
                         <div
                           className="card"
@@ -964,6 +980,36 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                           <p style={{ fontSize: "0.825rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
                             {inlineAnalysis.root_cause_hypothesis}
                           </p>
+                        </div>
+                      )}
+
+                      {inlineAnalysis?.priority_rationale && (
+                        <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "-0.4rem 0 0.8rem" }}>
+                          Priority basis: {inlineAnalysis.priority_rationale}
+                        </p>
+                      )}
+
+                      {inlineAnalysis?.repository_evidence?.length ? (
+                        <div className="card" style={{ padding: "0.7rem 0.8rem", marginBottom: "0.8rem" }}>
+                          <strong style={{ fontSize: "0.78rem", color: "var(--text-primary)" }}>Indexed source matches</strong>
+                          {inlineAnalysis.repository_evidence.slice(0, 2).map((evidence) => (
+                            <div key={`${evidence.file_path}-${evidence.start_line}`} style={{ marginTop: "0.35rem" }}>
+                              <code style={{ fontSize: "0.72rem", color: "#a5b4fc" }}>{evidence.file_path}:L{evidence.start_line}-L{evidence.end_line}</code>
+                              <pre className="code-container" style={{ whiteSpace: "pre-wrap", marginTop: "0.25rem", maxHeight: "120px", overflow: "auto" }}>{evidence.snippet}</pre>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {inlineAnalysis?.assumptions?.length ? (
+                        <div style={{ fontSize: "0.75rem", color: "#fbbf24", marginBottom: "0.8rem" }}>
+                          Unverified: {inlineAnalysis.assumptions.join(" ")}
+                        </div>
+                      ) : null}
+
+                      {inlineAnalysis?.repository_index_status && (
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                          Repository source index: {inlineAnalysis.repository_index_status}
                         </div>
                       )}
 
@@ -1018,7 +1064,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                     <Cpu size={15} color="#818cf8" />
                     <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                      AI Insights & Solution
+                      Issue Insights & Solution
                     </span>
                   </div>
 
@@ -1028,7 +1074,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                       style={{ padding: "2px 7px", fontSize: "0.725rem" }}
                       onClick={handleRunInlineDiagnosis}
                       disabled={diagnosingInline}
-                      title="Run AI triage and generate fix patch"
+                      title="Run repository-grounded issue triage"
                     >
                       {diagnosingInline ? (
                         <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
@@ -1045,7 +1091,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                     <div style={{ textAlign: "center", padding: "3rem 1rem" }}>
                       <div className="spinner spinner-sm" style={{ margin: "0 auto 0.5rem auto" }} />
                       <span style={{ fontSize: "0.775rem", color: "var(--text-muted)" }}>
-                        Loading AI diagnosis...
+                        Loading issue triage...
                       </span>
                     </div>
                   ) : !selectedIssueItem ? (
@@ -1059,10 +1105,11 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                     <div className="empty-state" style={{ padding: "2rem 1rem", margin: 0 }}>
                       <Sparkles size={32} className="empty-state-icon" color="#818cf8" />
                       <h4 style={{ fontSize: "0.9rem", color: "var(--text-primary)", marginBottom: "0.25rem" }}>
-                        Not Diagnosed Yet
+                        {inlineAnalysisError ? "Triage Could Not Be Loaded" : "No Triage Report Available"}
                       </h4>
+                      {inlineAnalysisError && <p role="alert" style={{ fontSize: "0.775rem", color: "#fca5a5" }}>{inlineAnalysisError}</p>}
                       <p style={{ fontSize: "0.775rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
-                        Run the AI diagnostic inspector to classify priority, isolate error vectors, and generate verified code patches.
+                        Run rule-based triage. Repository files and code changes are shown only when supported by indexed source evidence.
                       </p>
                       <button
                         className="btn btn-primary btn-sm"
@@ -1077,7 +1124,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                         ) : (
                           <>
                             <Sparkles size={13} />
-                            <span>Run AI Diagnosis Now</span>
+                            <span>{inlineAnalysisError ? "Retry Triage" : "Run Triage"}</span>
                           </>
                         )}
                       </button>
@@ -1096,7 +1143,7 @@ export const IssueExplorer: React.FC<IssueExplorerProps> = ({
                             textTransform: "capitalize",
                           }}
                         >
-                          {inlineAnalysis.category.replace("_", " ")} ({Math.round(inlineAnalysis.confidence * 100)}%)
+                          {inlineAnalysis.category.replace("_", " ")}
                         </span>
 
                         <span

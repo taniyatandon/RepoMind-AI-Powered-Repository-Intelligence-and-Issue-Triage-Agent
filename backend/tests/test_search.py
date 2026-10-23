@@ -5,9 +5,10 @@ from app.models.pull_request import PullRequest
 from app.models.repository import Repository
 
 @pytest.fixture
-def sample_search_data(db_session):
+def sample_search_data(db_session, test_user):
     # 1. Repositories
     repo1 = Repository(
+        user_id=test_user.id,
         github_repo_id=1001,
         full_name="tiangolo/fastapi",
         name="fastapi",
@@ -20,6 +21,7 @@ def sample_search_data(db_session):
         open_issues_count=150,
     )
     repo2 = Repository(
+        user_id=test_user.id,
         github_repo_id=1002,
         full_name="pallets/flask",
         name="flask",

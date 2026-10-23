@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.authorization import get_owned_repository
 from app.models.issue import Issue
 from app.models.repository import Repository
 from app.models.user import User
@@ -23,12 +24,7 @@ def get_repository_issues(
     current_user: User = Depends(get_current_user),
 ):
     # Verify repository exists
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    get_owned_repository(db, repo_id, current_user.id)
 
     query = db.query(Issue).filter(Issue.repository_id == repo_id)
 
@@ -73,12 +69,7 @@ def get_repository_labels(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    get_owned_repository(db, repo_id, current_user.id)
 
     # Aggregate distinct labels from issues
     issues = db.query(Issue.labels).filter(Issue.repository_id == repo_id).all()
@@ -100,7 +91,9 @@ def get_issue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    issue = db.query(Issue).filter(Issue.id == issue_id).first()
+    issue = db.query(Issue).join(Repository).filter(
+        Issue.id == issue_id, Repository.user_id == current_user.id
+    ).first()
     if not issue:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -117,7 +110,8 @@ def get_issue_by_number(
 ):
     issue = (
         db.query(Issue)
-        .filter(Issue.repository_id == repo_id, Issue.issue_number == issue_number)
+        .join(Repository, Issue.repository_id == Repository.id)
+        .filter(Issue.repository_id == repo_id, Issue.issue_number == issue_number, Repository.user_id == current_user.id)
         .first()
     )
     if not issue:

@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import Base, engine
+from app.database import Base, engine, migrate_user_ownership
 import app.models  # noqa: F401
 from app.routers import analysis, auth, issues, jobs, pull_requests, repositories, search
 
@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     # Ensure tables are created on startup if using auto-init
     try:
         Base.metadata.create_all(bind=engine)
+        migrate_user_ownership()
     except Exception as e:
         print(f"Warning on startup table creation: {e}")
     yield

@@ -1,6 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import logging
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.authorization import get_owned_repository
 from app.models.ingestion_job import IngestionJob
 from app.models.issue import Issue
 from app.models.repository import Repository
@@ -12,6 +15,7 @@ from app.services.code_indexing_service import CodeIndexingService
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter(prefix="/repositories", tags=["Repositories"])
+logger = logging.getLogger(__name__)
 
 @router.post("", response_model=RepoIngestAccepted, status_code=status.HTTP_202_ACCEPTED)
 def add_repository(
@@ -22,16 +26,19 @@ def add_repository(
 ):
     normalized_name = repo_in.repo_url_or_name
 
-    # Check for existing repository
+    # A repository may be added independently by multiple accounts.
     existing_repo = (
         db.query(Repository)
-        .filter(Repository.full_name == normalized_name)
+        .filter(
+            Repository.full_name == normalized_name,
+            Repository.user_id == current_user.id,
+        )
         .first()
     )
     if existing_repo:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Repository '{normalized_name}' is already added.",
+            detail=f"Repository '{normalized_name}' has already been added.",
         )
 
     # Check for already running / pending job
@@ -39,6 +46,7 @@ def add_repository(
         db.query(IngestionJob)
         .filter(
             IngestionJob.repository_name == normalized_name,
+            IngestionJob.user_id == current_user.id,
             IngestionJob.status.in_(["pending", "running"]),
         )
         .first()
@@ -52,6 +60,7 @@ def add_repository(
     # Create ingestion job in pending status
     job = IngestionJob(
         repository_name=normalized_name,
+        user_id=current_user.id,
         status="pending",
     )
     db.add(job)
@@ -74,7 +83,7 @@ def list_repositories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repos = db.query(Repository).order_by(Repository.created_at.desc()).all()
+    repos = db.query(Repository).filter(Repository.user_id == current_user.id).order_by(Repository.created_at.desc()).all()
     results = []
     for repo in repos:
         stored_count = db.query(Issue).filter(Issue.repository_id == repo.id).count()
@@ -89,12 +98,7 @@ def get_repository(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    repo = get_owned_repository(db, repo_id, current_user.id)
     stored_count = db.query(Issue).filter(Issue.repository_id == repo.id).count()
     repo_data = RepoResponse.model_validate(repo)
     repo_data.stored_issues_count = stored_count
@@ -106,19 +110,24 @@ def delete_repository(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
+    repo = get_owned_repository(db, repo_id, current_user.id)
+    repository_name = repo.full_name
+    try:
+        # Retain job history while deleting repository-owned records.
+        db.query(IngestionJob).filter(IngestionJob.repository_id == repo.id).update(
+            {"repository_id": None},
+            synchronize_session=False,
         )
-    # Dissociate any jobs pointing to this repository to retain job history as per PRD Section 6.4
-    db.query(IngestionJob).filter(IngestionJob.repository_id == repo.id).update(
-        {"repository_id": None}
-    )
-    db.delete(repo)
-    db.commit()
-    return {"message": f"Repository '{repo.full_name}' deleted successfully."}
+        db.delete(repo)
+        db.commit()
+    except SQLAlchemyError as error:
+        db.rollback()
+        logger.exception("Failed to delete repository %s", repo_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete repository due to a database error.",
+        ) from error
+    return {"message": f"Repository '{repository_name}' deleted successfully."}
 
 @router.post("/{repo_id}/sync", response_model=RepoIngestAccepted, status_code=status.HTTP_202_ACCEPTED)
 def sync_repository(
@@ -127,18 +136,14 @@ def sync_repository(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    repo = get_owned_repository(db, repo_id, current_user.id)
 
     # Check for active job
     active_job = (
         db.query(IngestionJob)
         .filter(
             IngestionJob.repository_name == repo.full_name,
+            IngestionJob.user_id == current_user.id,
             IngestionJob.status.in_(["pending", "running"]),
         )
         .first()
@@ -151,6 +156,7 @@ def sync_repository(
 
     job = IngestionJob(
         repository_id=repo.id,
+        user_id=current_user.id,
         repository_name=repo.full_name,
         status="pending",
     )
@@ -174,12 +180,7 @@ def get_indexing_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    repo = get_owned_repository(db, repo_id, current_user.id)
     indexing_service = CodeIndexingService()
     status_rec = indexing_service.get_or_create_status(db, repo.id)
     return CodeIndexStatusResponse.model_validate(status_rec)
@@ -190,12 +191,7 @@ async def index_repository_code(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    repo = db.query(Repository).filter(Repository.id == repo_id).first()
-    if not repo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Repository with ID {repo_id} not found",
-        )
+    repo = get_owned_repository(db, repo_id, current_user.id)
     indexing_service = CodeIndexingService()
     result_status = await indexing_service.index_repository_code(db, repo)
     return CodeIndexStatusResponse.model_validate(result_status)

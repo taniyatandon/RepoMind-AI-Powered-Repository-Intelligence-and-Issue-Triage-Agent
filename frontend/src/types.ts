@@ -128,6 +128,19 @@ export interface IssueAnalysis {
   reproduction_steps_detected: boolean;
   extracted_stack_trace: string | null;
   affected_components: string[];
+  issue_facts: { kind: string; label: string; value: string; url?: string }[];
+  repository_evidence: {
+    file_path: string;
+    start_line: number;
+    end_line: number;
+    matched_terms: string[];
+    snippet: string;
+    commit_sha: string | null;
+  }[];
+  assumptions: string[];
+  priority_rationale: string | null;
+  repository_index_status: string | null;
+  repository_indexed_at: string | null;
   fix_target_file: string | null;
   proposed_code_patch: string | null;
   verification_test_code: string | null;

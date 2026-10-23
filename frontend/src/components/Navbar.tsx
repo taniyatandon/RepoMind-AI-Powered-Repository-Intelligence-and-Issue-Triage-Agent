@@ -7,7 +7,6 @@ import {
   LogIn,
   LogOut,
   Menu,
-  Plus,
   Search,
   User as UserIcon,
 } from "lucide-react";
@@ -16,7 +15,6 @@ interface NavbarProps {
   user: User | null;
   onOpenAuth: (mode: "login" | "register") => void;
   onLogout: () => void;
-  onOpenAddRepo: () => void;
   onGoHome: () => void;
   activeRepo?: Repository | null;
   onToggleMobileSidebar?: () => void;
@@ -27,7 +25,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenAuth,
   onLogout,
-  onOpenAddRepo,
   onGoHome,
   activeRepo,
   onToggleMobileSidebar,
@@ -57,7 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div className="brand-text">
               <span>RepoMind</span>
-              <span className="brand-badge">AI 2.0</span>
             </div>
           </div>
 
@@ -134,15 +130,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="nav-actions">
           {user ? (
             <>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={onOpenAddRepo}
-                title="Add new GitHub repository"
-              >
-                <Plus size={15} />
-                <span>Add Repository</span>
-              </button>
-
               <div className="user-badge" title={`Signed in as ${user.email}`}>
                 <div className="user-avatar-circle">
                   {userInitial}
