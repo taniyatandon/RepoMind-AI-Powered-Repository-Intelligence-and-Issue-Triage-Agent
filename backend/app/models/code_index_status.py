@@ -19,7 +19,7 @@ class CodeIndexStatus(Base):
         default="not_indexed",
         nullable=False,
         index=True,
-    )  # not_indexed, indexing, indexed, partially_indexed, failed
+    )  
     total_files = Column(Integer, default=0, nullable=False)
     indexed_chunks = Column(Integer, default=0, nullable=False)
     commit_sha = Column(String(40), nullable=True)

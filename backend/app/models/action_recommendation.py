@@ -16,10 +16,10 @@ class ActionRecommendation(Base):
     action_type = Column(
         String(50),
         nullable=False,
-    )  # debug_fix, request_info, mark_duplicate, triage_label, review_stale
+    )  
     action_title = Column(String(200), nullable=False)
     rationale = Column(Text, nullable=False)
-    severity = Column(String(20), default="info", nullable=False)  # critical, warning, info
+    severity = Column(String(20), default="info", nullable=False)  
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

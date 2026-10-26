@@ -259,7 +259,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                 activeTab === "diagnosis"
                   ? "linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))"
                   : "transparent",
-              color: activeTab === "diagnosis" ? "#ffffff" : "var(--text-secondary)",
+              color: activeTab === "diagnosis" ? "var(--accent-primary)" : "var(--text-secondary)",
               border:
                 activeTab === "diagnosis"
                   ? "1px solid rgba(99, 102, 241, 0.5)"
@@ -301,7 +301,7 @@ export const IssueDetailModal: React.FC<IssueDetailModalProps> = ({
                 activeTab === "solution"
                   ? "linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(99, 102, 241, 0.2))"
                   : "transparent",
-              color: activeTab === "solution" ? "#ffffff" : "var(--text-secondary)",
+              color: activeTab === "solution" ? "var(--success-text)" : "var(--text-secondary)",
               border:
                 activeTab === "solution"
                   ? "1px solid rgba(16, 185, 129, 0.5)"

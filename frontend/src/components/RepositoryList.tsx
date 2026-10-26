@@ -322,7 +322,7 @@ export const RepositoryList: React.FC<RepositoryListProps> = ({
                       transition: "all var(--transition-fast)",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#a5b4fc";
+                      e.currentTarget.style.color = "var(--accent-primary)";
                       e.currentTarget.style.borderColor = "var(--accent-primary)";
                     }}
                     onMouseLeave={(e) => {

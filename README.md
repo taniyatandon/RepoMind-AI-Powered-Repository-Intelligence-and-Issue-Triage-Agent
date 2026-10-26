@@ -1,6 +1,21 @@
 # RepoMind – Open-Source Project Intelligence & Issue Triage Agent
 
-RepoMind is a centralized web platform designed to simplify exploring open-source GitHub repositories and managing their issues. Built with **FastAPI**, **PostgreSQL**, **SQLAlchemy 2.0**, and **React 18 + TypeScript + Vite**, RepoMind retrieves repository metadata and issues through the GitHub REST API and organizes them in a relational database with JWT authentication, issue filtering, pagination, and real-time background ingestion tracking.
+RepoMind is a centralized web platform designed to simplify exploring open-source GitHub repositories and managing their issues. Built with **FastAPI**, **SQLAlchemy 2.0**, **SQLite (with PostgreSQL support)**, and **React 18 + TypeScript + Vite**, RepoMind retrieves repository metadata and issues through the GitHub REST API and organizes them in a relational database with JWT authentication, issue filtering, pagination, and real-time background ingestion tracking.
+
+## Technology Stack & Rationale
+
+| Area | Technology | Why it fits RepoMind | Why not another option? |
+|---|---|---|---|
+| Backend API | Python, FastAPI, and Pydantic | FastAPI provides typed endpoints, request validation, and generated OpenAPI docs. Python also supports the repository analysis and triage services. | Flask is lighter but would require more API and validation pieces to be assembled. Django is capable, but its broader built-in application framework is more than this API currently needs. |
+| Database access | SQLAlchemy 2.0 | A single ORM and model layer supports both the local SQLite default and PostgreSQL deployments. | Database-specific query code would make local setup and deployment less consistent. |
+| Database | SQLite by default; PostgreSQL is supported | SQLite makes local development easy without a separate database server. PostgreSQL is available for deployments needing a dedicated database and stronger concurrent-use capabilities. | Requiring PostgreSQL for every local setup adds installation and configuration work; SQLite may be less suitable for heavier concurrent production workloads. |
+| Frontend | React 18 and TypeScript | React suits the interactive, component-based dashboard; TypeScript adds static checks for UI code and API data shapes. | Vue or Angular could also build the interface, but would mean adopting a different framework and ecosystem; this project already uses React. |
+| Frontend tooling | Vite | Provides a fast development server and production bundling with a small configuration surface. | A larger build setup would add complexity without a current need for its extra capabilities. |
+| GitHub integration | GitHub REST API and HTTPX | GitHub is the source of repository, issue, and pull-request data; HTTPX handles the backend's HTTP requests. | A different source API would not provide the same direct integration with GitHub repositories and issues. |
+| Authentication | JWT bearer tokens and Argon2 via `pwdlib` | JWTs authenticate API requests, while Argon2 stores password hashes instead of plaintext passwords. | Server-side sessions would require session storage and cookie-oriented state; weaker or reversible password storage would be inappropriate. |
+| Testing | pytest | The existing backend tests cover API behavior, authentication, ingestion, and related services. | A different test runner would not provide a meaningful benefit for the current Python test suite. |
+
+RepoMind's built-in hybrid code-search embeddings are deterministic and work locally without an external AI key. OpenAI and Gemini embedding providers can be selected through configuration when those integrations are desired. This keeps the default setup self-contained while leaving room for hosted providers.
 
 ---
 
@@ -9,7 +24,7 @@ RepoMind is a centralized web platform designed to simplify exploring open-sourc
 This repository contains the complete implementation for **Evaluation 1: Core Application Development**, fulfilling all functional and non-functional requirements specified in the Project Requirements Document (PRD):
 
 - **Backend REST APIs**: Developed with FastAPI, mounted under `/api`, fully typed with Pydantic schemas and OpenAPI documentation (`/docs`).
-- **PostgreSQL Database Storage**: Relational models for `users`, `repositories`, `issues`, and `ingestion_jobs` (with JSONB labels and comment counts).
+- **Relational Database Storage**: SQLAlchemy models for users, repositories, issues, pull requests, and ingestion jobs. SQLite is the default database; PostgreSQL is also supported, using JSON fields with PostgreSQL JSONB variants where applicable.
 - **GitHub Ingestion Engine**: Background asynchronous ingestion fetching repository metadata and up to 3 pages of 100 issues (excluding pull requests) with duplicate-safe synchronization and rate-limit handling.
 - **JWT & Argon2 Authentication**: User registration, login with 30-minute bearer tokens, password hashing with Argon2 via `pwdlib`, and protected routes dependency.
 - **Repository Management**: Validation and normalization of GitHub URLs and `owner/repo` formats, duplicate rejection (409 Conflict), repository deletion with cascading issues.
@@ -24,7 +39,7 @@ This repository contains the complete implementation for **Evaluation 1: Core Ap
 | Member | Role | Evaluation 1 Responsibilities & Deliverables |
 |---|---|---|
 | **Taniya Tandon** (2410993067) | Backend Development & System Integration Lead | FastAPI architecture, JWT authentication (`/api/auth`), protected endpoints, input validation, error handling, and router integration. |
-| **Gourvi** (2410993028) | Database Management & GitHub Integration Engineer | PostgreSQL database schema (`create_tables.py`), SQLAlchemy ORM models, GitHub REST API client (`HTTPX`), duplicate-safe ingestion pipeline, and job status tracking. |
+| **Gourvi** (2410993028) | Database Management & GitHub Integration Engineer | SQLAlchemy database models, GitHub REST API client (`HTTPX`), duplicate-safe ingestion pipeline, and job status tracking. |
 | **Janvi Aggarwal** (2410993200) | Frontend Development & User Interface Engineer | React 18 + TypeScript SPA, user authentication dialogs, repository cards with add/delete/sync, live ingestion polling, issue explorer with filters & pagination, and issue detail modal. |
 | **Mohit** (2410993236) | Quality Assurance, Testing & AI/ML Engineer | Automated test suite with **37 passing unit & integration tests**, test database fixtures, and end-to-end workflow verification script (`verify_workflow.py`). |
 
@@ -43,7 +58,7 @@ RepoMind/
 │   │   ├── models/                # SQLAlchemy ORM models
 │   │   │   ├── user.py            # Users table
 │   │   │   ├── repository.py      # Repositories table
-│   │   │   ├── issue.py           # Issues table (with JSONB labels)
+│   │   │   ├── issue.py           # Issues table (JSON labels / PostgreSQL JSONB)
 │   │   │   └── ingestion_job.py   # Ingestion jobs table
 │   │   ├── schemas/               # Pydantic validation schemas
 │   │   │   ├── user.py

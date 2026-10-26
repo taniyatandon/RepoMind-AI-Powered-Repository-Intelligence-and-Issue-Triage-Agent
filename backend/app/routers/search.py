@@ -90,7 +90,6 @@ async def global_search(
             for r in repo_matches
         ]
 
-    # 2. Issues (if mode is 'all' or 'keyword')
     if mode in ("all", "keyword"):
         issue_query = db.query(Issue, Repository.full_name).join(
             Repository, Issue.repository_id == Repository.id
@@ -133,7 +132,6 @@ async def global_search(
             for issue, repo_full_name in issue_matches
         ]
 
-    # 3. Pull Requests (if mode is 'all' or 'keyword')
     if mode in ("all", "keyword"):
         pr_query = db.query(PullRequest, Repository.full_name).join(
             Repository, PullRequest.repository_id == Repository.id
@@ -176,7 +174,6 @@ async def global_search(
             for pr, repo_full_name in pr_matches
         ]
 
-    # 4. Semantic Code Search (if mode is 'all' or 'code')
     if mode in ("all", "code"):
         code_chunks_raw = await code_intel_service.search_code(
             db=db,
